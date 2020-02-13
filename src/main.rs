@@ -1,9 +1,24 @@
 extern crate calamine;
+extern crate comrak;
+extern crate html_minifier;
+extern crate htmlescape;
 extern crate madato;
-extern crate serde_derive;
+
+#[macro_use]
+extern crate lazy_static_include;
+
+#[macro_use]
+extern crate lazy_static;
 
 use calamine::{open_workbook_auto, DataType, Reader};
-use madato::types::{ErroredTable, NamedTable, RenderOptions, TableRow, KVFilter};
+use comrak::{markdown_to_html, ComrakOptions};
+use html_minifier::HTMLMinifier;
+use htmlescape::*;
+use madato::types::{ErroredTable, NamedTable, RenderOptions, TableRow};
+
+use std::env;
+
+lazy_static_include_str!(MARKDOWN_CSS, "resources/github-markdown.css");
 
 fn read_excel_to_named_tables(
     filename: String,
@@ -64,7 +79,7 @@ fn read_excel_to_named_tables(
     sheets
 }
 
-fn list_sheet_names(filename: String) -> Result<Vec<String>, String> {
+fn _list_sheet_names(filename: String) -> Result<Vec<String>, String> {
     let workbook = open_workbook_auto(filename).expect("Could not open the file");
     Ok(workbook.sheet_names().to_owned())
 }
@@ -77,8 +92,8 @@ fn md_santise(data: &DataType) -> String {
         .replace("\r", "<br/>")
 }
 
-fn get_sheet_names(filename: String) {
-    for s in list_sheet_names(filename).unwrap() {
+fn _get_sheet_names(filename: String) {
+    for s in _list_sheet_names(filename).unwrap() {
         println!("{}", s);
     }
 }
@@ -89,7 +104,7 @@ fn spreadsheet_to_md(
 ) -> Result<String, String> {
     let results =
         read_excel_to_named_tables(filename, render_options.clone().and_then(|r| r.sheet_name));
- 
+
     if results.len() == 1 {
         Ok(madato::named_table_to_md(
             results[0].clone(),
@@ -109,20 +124,92 @@ fn spreadsheet_to_md(
     }
 }
 
+fn html_render(markdown_html: &str, title: &str) -> Result<String, String> {
+    let mut minifier = HTMLMinifier::new();
+
+    minifier
+        .digest("<!DOCTYPE html>")
+        .map_err(|err| err.to_string())?;
+    minifier.digest("<html>").map_err(|err| err.to_string())?;
+
+    minifier.digest("<head>").map_err(|err| err.to_string())?;
+    minifier
+        .digest("<meta charset=UTF-8>")
+        .map_err(|err| err.to_string())?;
+    minifier
+        .digest("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1, shrink-to-fit=no\">")
+        .map_err(|err| err.to_string())?;
+
+    minifier.digest("<title>").map_err(|err| err.to_string())?;
+    minifier
+        .digest(&encode_minimal(title))
+        .map_err(|err| err.to_string())?;
+    minifier.digest("</title>").map_err(|err| err.to_string())?;
+
+    minifier.digest("<style>").map_err(|err| err.to_string())?;
+    minifier
+        .digest(&encode_minimal(&MARKDOWN_CSS))
+        .map_err(|err| err.to_string())?;
+    minifier.digest("</style>").map_err(|err| err.to_string())?;
+
+    minifier.digest("</head>").map_err(|err| err.to_string())?;
+
+    minifier.digest("<body>").map_err(|err| err.to_string())?;
+
+    minifier
+        .digest("<article class=\"markdown-body\">")
+        .map_err(|err| err.to_string())?;
+    minifier
+        .digest(&markdown_html)
+        .map_err(|err| err.to_string())?;
+    minifier
+        .digest("</article>")
+        .map_err(|err| err.to_string())?;
+
+    minifier.digest("</body>").map_err(|err| err.to_string())?;
+
+    minifier.digest("</html>").map_err(|err| err.to_string())?;
+
+    let minified_html = minifier.get_html();
+
+    Ok(minified_html)
+}
+
 fn main() -> Result<(), String> {
-    let filename = String::from("/home/alienzj/projects/excel-previewer/data/TabS7-Oral_antiSMASH.xlsx");
+    let args: Vec<String> = env::args().collect();
+    let filename = &args[1];
+
     let render_options = Some(RenderOptions {
         headings: None,
         sheet_name: None,
         filters: None,
     });
 
-    let output_string = spreadsheet_to_md(filename, &render_options);
+    let output_string = spreadsheet_to_md(filename.to_string(), &render_options);
 
     match output_string {
         Ok(markdown) => {
-            println!("{}", markdown);
-            Ok(())
+            let mut options = ComrakOptions::default();
+            options.unsafe_ = true;
+            options.ext_autolink = true;
+            options.ext_description_lists = true;
+            options.ext_footnotes = true;
+            options.ext_strikethrough = true;
+            options.ext_superscript = true;
+            options.ext_table = true;
+            options.ext_tagfilter = true;
+            options.ext_tasklist = true;
+            options.hardbreaks = true;
+
+            let html = markdown_to_html(&markdown[..], &options);
+            let html_rendered = html_render(&html, "hello");
+            match html_rendered {
+                Ok(html_output) => {
+                    println!("{}", html_output);
+                    Ok(())
+                }
+                Err(err) => Err(err),
+            }
         }
         Err(err) => Err(err),
     }
