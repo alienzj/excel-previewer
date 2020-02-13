@@ -1,0 +1,26 @@
+#+TITLE:   excel-preview
+#+DATE:    February 13, 2020
+#+SINCE:   {replace with next tagged release version}
+#+STARTUP: inlineimages nofold
+
+* Table of Contents :TOC_3:noexport:
+- [[#description][Description]]
+- [[#installation][Installation]]
+- [[#run][Run]]
+
+* Description
+A command line that convert excel to html
+
+* Installation
+#+BEGIN_SRC bash
+git clone https://github.com/alienzj/excel-preview
+cd excel-preview
+cargo build
+#+END_SRC
+
+* Run
+#+BEGIN_SRC bash
+# eg: data/xxx.xlsx
+cargo run --bin excel-preview <path/to/excel> > hello.html
+firefox hello.html
+#+END_SRC
