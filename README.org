@@ -13,14 +13,14 @@ A command line that convert excel to html
 
 * Installation
 #+BEGIN_SRC bash
-git clone https://github.com/alienzj/excel-preview
-cd excel-preview
+git clone https://github.com/alienzj/excel-previewer
+cd excel-previewer
 cargo build
 #+END_SRC
 
 * Run
 #+BEGIN_SRC bash
 # eg: data/xxx.xlsx
-cargo run --bin excel-preview <path/to/excel> > hello.html
-firefox hello.html
+cargo run --bin excel-previewer data/test.xlsx > data/temp.html
+firefox data/temp.html
 #+END_SRC
